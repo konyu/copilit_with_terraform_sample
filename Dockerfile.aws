@@ -1,0 +1,57 @@
+# see: https://docs.docker.com/compose/rails/
+FROM ruby:3.0.1
+
+# ARG
+ARG RAILS_ENV
+ENV LANG=C.UTF-8
+ENV TZ=Asia/Tokyo
+
+
+RUN curl -sL https://deb.nodesource.com/setup_12.x | bash -\
+    && curl -sS https://dl.yarnpkg.com/debian/pubkey.gpg | apt-key add -a\
+    && echo "deb https://dl.yarnpkg.com/debian/ stable main" | tee /etc/apt/sources.list.d/yarn.list \
+    && apt-get update -qq \
+    && apt-get upgrade -y \
+    && apt-get install -y \
+        yarn  \
+        nodejs \
+        default-mysql-client \
+        vim \
+        curl \
+    && ln -sf /usr/share/zoneinfo/Asia/Tokyo /etc/localtime \
+    && mkdir /app
+
+ENV ROOT="/app"
+WORKDIR ${ROOT}
+
+COPY Gemfile ${ROOT}
+COPY Gemfile.lock ${ROOT}
+RUN gem install bundler
+RUN bundle install --jobs 4
+
+COPY yarn.lock ${ROOT}
+COPY package.json ${ROOT}
+RUN yarn install
+
+COPY . ${ROOT}
+
+# AWS CodeBuild 上で docker build する際にエラーになったので、適当な SECRET_KEY_BASE を設定
+RUN SECRET_KEY_BASE=hoge RAILS_ENV=$RAILS_ENV bundle exec rails assets:precompile
+# webpackのキャッシュを削除
+RUN  rm -Rf public/packs/
+# webpacker compile
+RUN SECRET_KEY_BASE=hoge RAILS_ENV=$RAILS_ENV bundle exec rails webpacker:compile
+
+# DB migration
+COPY ./entrypoint.sh /usr/bin/
+RUN chmod +x /usr/bin/entrypoint.sh
+ENTRYPOINT ["entrypoint.sh"]
+
+EXPOSE 3000
+
+CMD ["rails", "server", "-b", "0.0.0.0"]
+
+
+
+
+
