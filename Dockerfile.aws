@@ -2,7 +2,7 @@
 FROM ruby:3.0.1
 
 # ARG
-ARG RAILS_ENV
+ARG RAILS_ENV=production
 ENV LANG=C.UTF-8
 ENV TZ=Asia/Tokyo
 
